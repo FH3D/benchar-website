@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <title>BenchAr — Augmented Reality für die Montage · Pilotpartner gesucht</title>
+<meta name="description" content="BenchAr blendet Montageanleitungen als Augmented Reality Schritt für Schritt direkt auf den Arbeitstisch ein — mit Konturen aus jedem CAD-System (via DXF), kamerakalibriert, mit Handtracking und Rückverfolgbarkeit. Ich suche Fertigungsbetriebe als Pilotpartner, die das Tool an ihrem Arbeitsplatz mitgestalten.">
+<meta name="theme-color" content="#080b14">
+
+<!-- Open Graph / Social Sharing -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="BenchAr — Pilotpartner gesucht">
+<meta property="og:description" content="Montageanleitungen als Augmented Reality direkt auf den Arbeitstisch projiziert — mit Rückverfolgbarkeit. Ich suche Fertigungsbetriebe, die BenchAr an ihrem Arbeitsplatz mitentwickeln.">
+<meta property="og:site_name" content="BenchAr">
+<meta property="og:url" content="https://www.benchar.de/">
+<meta property="og:image" content="https://www.benchar.de/screenshot.jpg">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:width" content="1800">
+<meta property="og:image:height" content="978">
+<meta property="og:image:alt" content="BenchAr im Betrieb: projizierte Montageführung auf dem Arbeitstisch mit Bedien-Buttons und markierten Greifzonen.">
+<!-- Twitter / X Card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="BenchAr — Pilotpartner gesucht">
+<meta name="twitter:description" content="Montageanleitungen als Augmented Reality direkt auf den Arbeitstisch projiziert — mit Rückverfolgbarkeit.">
+<meta name="twitter:image" content="https://www.benchar.de/screenshot.jpg">
+
+<style>
+  :root {
+    --bg:        #080b14;
+    --bg-soft:   #0d1320;
+    --panel:     #111829;
+    --card:      rgba(20,28,46,.58);
+    --border:    #23304c;
+    --border-soft: rgba(120,140,180,.14);
+    --text:      #eef2f8;
+    --text-dim:  #93a2b8;
+    --text-faint:#5f6d84;
+    --accent:    #ff6a3d;   /* Orange – Projektionslinien */
+    --accent-2:  #a78bfa;   /* Violett – Interaktion */
+    --accent-3:  #34d399;   /* Grün – Bestätigung / Präzision */
+    --radius:    16px;
+    --maxw:      1120px;
+    --mono:      ui-monospace, "SFMono-Regular", "Cascadia Code", "Segoe UI Mono", Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  a { color: inherit; }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+  .mono { font-family: var(--mono); }
+
+  /* Technisches Raster + Glow als Seiten-Hintergrund */
+  body::before {
+    content: ""; position: fixed; inset: 0; z-index: -2; pointer-events: none;
+    background:
+      linear-gradient(rgba(120,140,180,.045) 1px, transparent 1px) 0 0 / 46px 46px,
+      linear-gradient(90deg, rgba(120,140,180,.045) 1px, transparent 1px) 0 0 / 46px 46px;
+    mask-image: radial-gradient(circle at 50% 0%, #000 0%, transparent 78%);
+  }
+  body::after {
+    content: ""; position: fixed; inset: 0; z-index: -3; pointer-events: none;
+    background:
+      radial-gradient(60% 45% at 78% 8%, rgba(255,106,61,.16), transparent 62%),
+      radial-gradient(55% 45% at 12% 4%, rgba(167,139,250,.16), transparent 60%);
+  }
+
+  /* ---------- Buttons ---------- */
+  .btn {
+    display: inline-flex; align-items: center; gap: 9px;
+    padding: 14px 26px; border-radius: 11px;
+    font-weight: 600; font-size: 1rem; text-decoration: none; cursor: pointer;
+    border: 1px solid transparent;
+    transition: transform .16s ease, box-shadow .16s ease, background .16s ease, border-color .16s ease;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), #ff855f);
+    color: #14060a;
+    box-shadow: 0 10px 30px rgba(255,106,61,.30);
+  }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 16px 40px rgba(255,106,61,.42); }
+  .btn-ghost { background: rgba(255,255,255,.03); border-color: var(--border); color: var(--text); }
+  .btn-ghost:hover { border-color: var(--accent-2); background: rgba(167,139,250,.08); }
+
+  /* ---------- Header ---------- */
+  header {
+    position: sticky; top: 0; z-index: 30;
+    backdrop-filter: blur(14px);
+    background: rgba(8,11,20,.72);
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .nav { display: flex; align-items: center; justify-content: space-between; height: 66px; }
+  .logo { display: flex; align-items: center; gap: 11px; font-weight: 700; font-size: 1.16rem; letter-spacing: .3px; }
+  .logo-mark {
+    width: 28px; height: 28px; border-radius: 8px; position: relative;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    box-shadow: 0 0 0 1px rgba(255,255,255,.08) inset, 0 6px 16px rgba(255,106,61,.35);
+  }
+  .logo-mark::after {
+    content: ""; position: absolute; inset: 7px; border-radius: 3px;
+    border: 2px solid rgba(255,255,255,.85); border-right-color: transparent; border-bottom-color: transparent;
+  }
+  .nav-links { display: flex; gap: 28px; font-size: .95rem; }
+  .nav-links a { color: var(--text-dim); text-decoration: none; transition: color .15s; }
+  .nav-links a:hover { color: var(--text); }
+  @media (max-width: 820px) { .nav-links { display: none; } }
+
+  /* ---------- Hero ---------- */
+  .hero { padding: 92px 0 40px; text-align: center; position: relative; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 9px;
+    font-family: var(--mono); font-size: .78rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 2px; color: var(--accent-2);
+    padding: 7px 14px; border-radius: 999px;
+    border: 1px solid rgba(167,139,250,.3); background: rgba(167,139,250,.08);
+    margin-bottom: 26px;
+  }
+  .eyebrow .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent-3); box-shadow: 0 0 10px var(--accent-3); }
+  .hero h1 {
+    font-size: clamp(2.2rem, 5.2vw, 3.7rem); line-height: 1.1; font-weight: 800;
+    letter-spacing: -.02em; max-width: 940px; margin: 0 auto 22px;
+  }
+  .hero h1 .hl {
+    background: linear-gradient(120deg, var(--accent), #ffa07a 60%, var(--accent-2));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .hero p.sub { font-size: clamp(1.05rem, 2vw, 1.28rem); color: var(--text-dim); max-width: 680px; margin: 0 auto 32px; }
+  .hero-cta { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+
+  /* Kennzahlen-Streifen */
+  .specs {
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 0;
+    margin: 34px auto 0; max-width: 760px;
+    font-family: var(--mono); font-size: .82rem; color: var(--text-dim);
+  }
+  .specs span { padding: 0 20px; position: relative; white-space: nowrap; }
+  .specs span + span::before {
+    content: ""; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+    width: 1px; height: 13px; background: var(--border);
+  }
+  .specs b { color: var(--text); font-weight: 600; }
+
+  /* Screenshot-Rahmen */
+  .shot {
+    position: relative; margin: 54px auto 0; max-width: 1000px;
+    border-radius: var(--radius); overflow: hidden;
+    border: 1px solid var(--border);
+    background: var(--bg-soft);
+    box-shadow: 0 40px 120px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.03) inset;
+  }
+  .shot::before {
+    content: ""; position: absolute; inset: -1px; z-index: 2; pointer-events: none; border-radius: var(--radius);
+    background: linear-gradient(120deg, rgba(255,106,61,.25), transparent 30%, transparent 70%, rgba(167,139,250,.25));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude; padding: 1px;
+  }
+  .shot img { display: block; width: 100%; height: auto; }
+  .shot .live {
+    position: absolute; top: 14px; left: 14px; z-index: 3;
+    display: inline-flex; align-items: center; gap: 7px;
+    font-family: var(--mono); font-size: .72rem; letter-spacing: .5px; color: var(--text);
+    padding: 6px 11px; border-radius: 999px;
+    background: rgba(8,11,20,.72); border: 1px solid var(--border); backdrop-filter: blur(6px);
+  }
+  .shot .live .rec { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent); animation: pulse 1.8s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+  .shot-cap { text-align: center; color: var(--text-faint); font-size: .85rem; margin-top: 14px; font-family: var(--mono); }
+
+  /* ---------- Sections ---------- */
+  section { padding: 78px 0; position: relative; }
+  .section-title { text-align: center; margin-bottom: 50px; }
+  .section-title .kicker {
+    font-family: var(--mono); font-size: .76rem; text-transform: uppercase; letter-spacing: 2px;
+    color: var(--accent); display: block; margin-bottom: 12px;
+  }
+  .section-title h2 { font-size: clamp(1.7rem, 3.2vw, 2.4rem); font-weight: 800; letter-spacing: -.02em; margin-bottom: 14px; }
+  .section-title p { color: var(--text-dim); max-width: 620px; margin: 0 auto; }
+
+  .grid { display: grid; gap: 20px; }
+  .grid-3 { grid-template-columns: repeat(3, 1fr); }
+  @media (max-width: 860px) { .grid-3 { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius);
+    padding: 28px;
+    backdrop-filter: blur(10px);
+    transition: transform .2s ease, border-color .2s ease;
+  }
+  .card:hover { transform: translateY(-4px); border-color: rgba(167,139,250,.3); }
+  /* Icon-Kacheln im App-Stil (mc-ico): Soft-Gradient Orange->Violett, Stroke-SVGs */
+  .card .ico {
+    width: 46px; height: 46px; border-radius: 12px;
+    display: grid; place-items: center; margin-bottom: 16px;
+    background: linear-gradient(135deg, rgba(255,106,61,.10), rgba(167,139,250,.16));
+    border: 1px solid rgba(167,139,250,.2);
+    color: #c4b5fd;
+  }
+  .card h3 { font-size: 1.18rem; margin-bottom: 8px; }
+  .card p { color: var(--text-dim); font-size: .96rem; }
+
+  /* NEU-Badge */
+  .newband {
+    display: inline-flex; align-items: center; gap: 8px; margin: 0 auto 12px;
+    font-family: var(--mono); font-size: .74rem; letter-spacing: 1px; text-transform: uppercase;
+    color: var(--accent-3); padding: 6px 13px; border-radius: 999px;
+    background: rgba(52,211,153,.1); border: 1px solid rgba(52,211,153,.28);
+  }
+
+  /* ---------- Status ---------- */
+  .status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 940px; margin: 0 auto; }
+  @media (max-width: 820px) { .status-grid { grid-template-columns: 1fr; } }
+  .status-col { background: var(--card); border: 1px solid var(--border-soft); border-radius: var(--radius); padding: 30px; backdrop-filter: blur(10px); }
+  .status-col h3 { font-size: 1.12rem; margin-bottom: 18px; display: flex; align-items: center; gap: 10px; }
+  .status-col ul { list-style: none; display: grid; gap: 13px; }
+  /* Kein flex: sonst wird jedes <strong> im Text zur eigenen Flex-Spalte.
+     Marker absolut + hängender Einzug → Text fließt normal, Umbrüche bündig. */
+  .status-col li { position: relative; padding-left: 26px; color: var(--text-dim); font-size: .96rem; line-height: 1.55; }
+  .status-col li .m { position: absolute; left: 0; top: 0; font-weight: 700; font-family: var(--mono); }
+  .status-col.done { border-color: rgba(52,211,153,.22); }
+  .status-col.done li .m { color: var(--accent-3); }
+  .status-col.wip { border-color: rgba(167,139,250,.22); }
+  .status-col.wip li .m { color: var(--accent-2); }
+  .status-tag { font-family: var(--mono); font-size: .68rem; letter-spacing: 1px; padding: 3px 8px; border-radius: 6px; margin-left: auto; text-transform: uppercase; }
+  .status-col.done .status-tag { color: var(--accent-3); background: rgba(52,211,153,.1); }
+  .status-col.wip .status-tag { color: var(--accent-2); background: rgba(167,139,250,.1); }
+
+  /* ---------- Steps ---------- */
+  .steps { counter-reset: step; display: grid; gap: 18px; max-width: 780px; margin: 0 auto; }
+  .step {
+    display: flex; gap: 20px; align-items: flex-start;
+    background: var(--card); border: 1px solid var(--border-soft); border-radius: var(--radius);
+    padding: 22px 24px; backdrop-filter: blur(10px);
+  }
+  .step::before {
+    counter-increment: step; content: counter(step, decimal-leading-zero);
+    flex: 0 0 auto; width: 46px; height: 46px; border-radius: 12px;
+    display: grid; place-items: center; font-weight: 700; font-family: var(--mono);
+    background: linear-gradient(135deg, rgba(255,106,61,.18), rgba(167,139,250,.18));
+    border: 1px solid var(--border); color: var(--text);
+  }
+  .step h3 { font-size: 1.1rem; margin-bottom: 4px; }
+  .step p { color: var(--text-dim); font-size: .95rem; }
+
+  /* ---------- Deal ---------- */
+  .deal { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 940px; margin: 0 auto; }
+  @media (max-width: 820px) { .deal { grid-template-columns: 1fr; } }
+  .deal-col { border-radius: var(--radius); padding: 30px; border: 1px solid var(--border-soft); backdrop-filter: blur(10px); }
+  .deal-col.get { background: linear-gradient(160deg, rgba(255,106,61,.12), var(--card)); border-color: rgba(255,106,61,.2); }
+  .deal-col.give { background: var(--card); }
+  .deal-col h3 { font-size: 1.14rem; margin-bottom: 18px; }
+  .deal-col ul { list-style: none; display: grid; gap: 13px; }
+  /* wie .status-col li: kein flex, sonst zerreißt <strong> den Fließtext */
+  .deal-col li { position: relative; padding-left: 24px; color: var(--text-dim); font-size: .96rem; line-height: 1.55; }
+  .deal-col li .m { position: absolute; left: 0; top: 0; font-weight: 700; color: var(--accent); }
+  .deal-col.give li .m { color: var(--accent-2); }
+
+  .pilot-note { max-width: 780px; margin: 36px auto 0; text-align: center; background: var(--bg-soft); border: 1px solid var(--border); border-radius: var(--radius); padding: 32px; }
+  .pilot-note .slots {
+    display: inline-flex; align-items: center; gap: 8px; margin-bottom: 14px;
+    padding: 7px 15px; border-radius: 999px; background: rgba(255,106,61,.12);
+    color: var(--accent); font-family: var(--mono); font-size: .8rem; font-weight: 600; letter-spacing: .5px;
+    border: 1px solid rgba(255,106,61,.25);
+  }
+  .pilot-note p { color: var(--text-dim); }
+
+  /* ---------- Video ---------- */
+  .video-frame { margin: 0 auto; max-width: 860px; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); box-shadow: 0 30px 80px rgba(0,0,0,.5); background: var(--bg-soft); }
+  .video-ratio { position: relative; padding-top: 56.25%; }
+  .video-ratio iframe, .video-ratio video, .video-placeholder { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  .video-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; color: var(--text-dim); background: radial-gradient(circle at 50% 40%, rgba(255,106,61,.12), transparent 60%), var(--bg-soft); }
+  .video-placeholder .play { width: 66px; height: 66px; border-radius: 50%; background: var(--accent); display: grid; place-items: center; box-shadow: 0 10px 30px rgba(255,106,61,.4); }
+  .video-placeholder .play::after { content: ""; border-style: solid; border-width: 11px 0 11px 19px; border-color: transparent transparent transparent #14060a; margin-left: 4px; }
+
+  /* ---------- Kontakt ---------- */
+  #kontakt { background: radial-gradient(circle at 50% 0%, rgba(167,139,250,.1), transparent 55%); }
+  .contact-box { max-width: 740px; margin: 0 auto; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 44px; text-align: center; backdrop-filter: blur(10px); }
+  .tally-embed { margin-top: 26px; min-height: 320px; }
+  .tally-placeholder { border: 2px dashed var(--border); border-radius: 12px; padding: 42px 24px; color: var(--text-dim); font-size: .95rem; }
+  .tally-placeholder code { background: var(--bg); padding: 2px 6px; border-radius: 4px; color: var(--accent-2); font-family: var(--mono); }
+
+  /* ---------- Footer ---------- */
+  footer { border-top: 1px solid var(--border-soft); padding: 36px 0; text-align: center; color: var(--text-dim); font-size: .9rem; }
+  footer a { color: var(--text-dim); text-decoration: none; }
+  footer a:hover { color: var(--text); }
+  .footer-links { margin-top: 10px; display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; }
+
+  /* ---------- Reveal (Progressive Enhancement) ---------- */
+  .reveal-on [data-reveal] { opacity: 0; transform: translateY(20px); transition: opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1); }
+  .reveal-on [data-reveal].in { opacity: 1; transform: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <div class="logo"><span class="logo-mark"></span> BenchAr</div>
+    <nav class="nav-links">
+      <a href="#was">Was ist BenchAr</a>
+      <a href="#trace">Rückverfolgbarkeit</a>
+      <a href="#schlank">Der Unterschied</a>
+      <a href="#status">Status</a>
+      <a href="#partner">Pilotpartner</a>
+      <a href="#kontakt">Kontakt</a>
+    </nav>
+    <a href="#kontakt" class="btn btn-primary" style="padding:10px 20px;">Pilotpartner werden</a>
+  </div>
+</header>
+
+<!-- ============ HERO ============ -->
+<section class="hero">
+  <div class="wrap">
+    <span class="eyebrow"><span class="dot"></span> Pilotpartner gesucht</span>
+    <h1>Augmented Reality, direkt auf den <span class="hl">Arbeitstisch projiziert.</span></h1>
+    <p class="sub">BenchAr blendet Montageanleitungen Schritt für Schritt als Augmented Reality direkt auf den Arbeitstisch ein — dorthin, wo montiert wird. Kein Headset, kein Papier. Das Kernsystem läuft — jetzt suche ich Fertigungsbetriebe, die es an ihrem realen Arbeitsplatz erproben und mitprägen.</p>
+    <div class="hero-cta">
+      <a href="#kontakt" class="btn btn-primary">Pilotpartner werden</a>
+      <a href="#was" class="btn btn-ghost">Wie es funktioniert</a>
+    </div>
+
+    <div class="specs mono">
+      <span>1:1 aus <b>CAD</b> (DXF)</span>
+      <span><b>kamerakalibriert</b></span>
+      <span><b>Handerkennung</b></span>
+      <span><b>rückverfolgbar</b></span>
+      <span><b>de&nbsp;/&nbsp;en&nbsp;/&nbsp;fr</b></span>
+    </div>
+
+    <div class="shot" data-reveal>
+      <span class="live"><span class="rec"></span> Live-Kamerabild</span>
+      <img src="screenshot.jpg" width="1800" height="978" alt="BenchAr im Betrieb: Live-Kamerabild des Arbeitstisches mit projizierten OK-/Zurück-Buttons und markierten Greifzonen." loading="eager">
+    </div>
+    <p class="shot-cap">Echter Arbeitsplatz: projizierte Bedien-Buttons und Greifzonen im Live-Kamerabild.</p>
+  </div>
+</section>
+
+<!-- ============ WAS IST BENCHAR ============ -->
+<section id="was">
+  <div class="wrap">
+    <div class="section-title" data-reveal>
+      <span class="kicker">Das Prinzip</span>
+      <h2>Die Anleitung liegt dort, wo gearbeitet wird</h2>
+      <p>Kein Papier, kein Blick zum Monitor, keine Verwechslung bei Varianten.</p>
+    </div>
+    <div class="grid grid-3">
+      <div class="card acc" data-reveal>
+        <div class="ico"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 15.5L15.5 4l4.5 4.5L8.5 20z"/><path d="M8 11l1.5 1.5M11 8l1.5 1.5M14.5 11.5l1.5 1.5"/></svg></div>
+        <h3>Aus jedem CAD-System</h3>
+        <p>Bauteil-Konturen kommen 1:1 aus deiner 2D- oder 3D-CAD-Software — ob AutoCAD, SolidWorks, Fusion oder Inventor: jedes System exportiert DXF. Kein Nachzeichnen, der Beamer zeigt sie an der richtigen Stelle auf dem Tisch.</p>
+      </div>
+      <div class="card" data-reveal>
+        <div class="ico"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="0.8" fill="currentColor"/></svg></div>
+        <h3>Kamerakalibriert</h3>
+        <p>Eine Kamera entzerrt die Projektion exakt auf die reale Tischfläche. Millimetergenau, einmal eingerichtet.</p>
+      </div>
+      <div class="card" data-reveal>
+        <div class="ico"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg></div>
+        <h3>Schritt für Schritt geführt</h3>
+        <p>Der Werker arbeitet jeden Schritt ab und bestätigt ihn. Das System erkennt zuverlässig die Hände am Arbeitsplatz.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ RÜCKVERFOLGBARKEIT (NEU) ============ -->
+<section id="trace" style="background: var(--bg-soft);">
+  <div class="wrap">
+    <div class="section-title" data-reveal>
+      <span class="newband">✦ Frisch gebaut — bereit zum Erproben</span>
+      <h2>Rückverfolgbarkeit &amp; Fehlervermeidung</h2>
+      <p>Der jüngste Ausbau: Aus geführter Montage wird dokumentierte Montage. Neu entwickelt und technisch geprüft — jetzt zum Erproben mit den ersten Pilotpartnern.</p>
+    </div>
+    <div class="grid grid-3">
+      <div class="card" data-reveal>
+        <div class="ico"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg></div>
+        <h3>Aufträge &amp; Stückliste</h3>
+        <p>Fertigungsaufträge mit Sachnummer, Seriennummer und BOM. Der Werker wählt den Auftrag, das System bindet den ganzen Durchlauf daran.</p>
+      </div>
+      <div class="card acc" data-reveal>
+        <div class="ico"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5l5-5"/><path d="M7 12l-2 2a3.5 3.5 0 0 0 5 5l2-2"/><path d="M17 12l2-2a3.5 3.5 0 0 0-5-5l-2 2"/></svg></div>
+        <h3>Verbaudokumentation je Bauteil</h3>
+        <p>Welche Serie oder Charge ging in welches Endprodukt? Jedes verbaute Teil wird beim Bestätigen erfasst — lückenlose Chargen- und Seriennummern-Rückverfolgung.</p>
+      </div>
+      <div class="card" data-reveal>
+        <div class="ico"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M6 6l12 12"/></svg></div>
+        <h3>Poka-Yoke</h3>
+        <p>Falsches Teil in der Hand? Der Schritt bleibt blockiert. Die Erfassung wird gegen die Stückliste des Auftrags geprüft — Fehler werden verhindert, nicht nur protokolliert.</p>
+      </div>
+      <div class="card acc" data-reveal>
+        <div class="ico"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
+        <h3>Manipulationssicherer Audit-Trail</h3>
+        <p>Jeder Schritt landet in einem hash-verketteten Protokoll — nachträgliches Ändern bricht die Kette und wird erkannt. Die Basis für belastbare Dokumentation.</p>
+      </div>
+      <div class="card" data-reveal>
+        <div class="ico"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8h3l1.5-2h5L16 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3"/></svg></div>
+        <h3>Kamera oder Scanner</h3>
+        <p>Serie/Charge per <b>DataMatrix/QR über die Kamera</b> — oder ganz ohne Kamera per Handscanner bzw. Tastatur. Günstiger Einstieg, jederzeit erweiterbar.</p>
+      </div>
+      <div class="card" data-reveal>
+        <div class="ico"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V5a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v16"/><path d="M15 21V9h4a1 1 0 0 1 1 1v11"/><path d="M8 8h3M8 12h3M8 16h3"/></svg></div>
+        <h3>Offene Daten statt Silo</h3>
+        <p>Jeder Durchlauf liegt als offenes, maschinenlesbares Protokoll vor — bereit für Qualitätsakte, Auswertung und die Übergabe an bestehende Systeme.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SCHLANK STATT ENTERPRISE ============ -->
+<section id="schlank">
+  <div class="wrap">
+    <div class="section-title" data-reveal>
+      <span class="kicker">Der Unterschied</span>
+      <h2>Schlank statt Enterprise</h2>
+      <p>Projektionsbasierte Werkerführung gab es bisher fast nur als Enterprise-Plattform — mit Integrationsprojekt, Cloud-Anbindung und entsprechendem Preisschild. BenchAr ist bewusst der leichte Weg.</p>
+    </div>
+    <div class="grid grid-3">
+      <div class="card" data-reveal>
+        <div class="ico"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="12.5" rx="1.5"/><path d="M9 21h6M12 17v4"/></svg></div>
+        <h3>Läuft auf einem PC</h3>
+        <p>Ein regulärer Windows-PC, Beamer, Kamera — fertig. Kein Server, keine Cloud-Pflicht: Alle Dienste laufen nur auf der Maschine selbst und sind aus dem Netzwerk gar nicht erreichbar.</p>
+      </div>
+      <div class="card acc" data-reveal>
+        <div class="ico"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>
+        <h3>Deine Daten bleiben im Haus</h3>
+        <p>Abläufe, Protokolle und Audit-Trail liegen als Dateien auf deinem Rechner — kein fremdes Rechenzentrum, kein Abo-Zwang. Die IT-Freigabe ist ein Gespräch, kein Projekt.</p>
+      </div>
+      <div class="card" data-reveal>
+        <div class="ico"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M14.8 9.6a3.6 3.6 0 1 0 0 4.8M8.6 11h4.6M8.6 13h4.1"/></svg></div>
+        <h3>Bezahlbar für den Mittelstand</h3>
+        <p>In Tagen startklar statt in Monaten. Ein klarer Preis pro Station — <strong>keine Nutzerlizenzen, keine Modulpreise</strong>. Für Betriebe, für die eine Enterprise-Lösung nie infrage kam.</p>
+      </div>
+    </div>
+
+    <div class="pilot-note" data-reveal>
+      <span class="slots">Das Modell: eine Station, ein Preis</span>
+      <p>Du bekommst die BenchAr-Station als <strong>Komplettsystem aus einer Hand</strong> — Hardware, Software und Einrichtung, aufeinander abgestimmt und getestet. Danach nur ein planbarer jährlicher Betrag für Pflege und Support. Kein Cloud-Abo, kein Lizenzdschungel, keine versteckten Kosten. Und fällt eine Komponente aus, kommt Ersatz per Vorab-Austausch: dank automatischer Kalibrierung tauschst du sie selbst — <strong>ohne Techniker-Einsatz, ohne Stillstand</strong>.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ EHRLICHER STATUS ============ -->
+<section id="status">
+  <div class="wrap">
+    <div class="section-title" data-reveal>
+      <span class="kicker">Kein Blendwerk</span>
+      <h2>Ehrlicher Stand der Dinge</h2>
+      <p>BenchAr ist früh dran — aber das Kernsystem läuft stabil. Genau deshalb kannst du als Pilotpartner die Richtung mitbestimmen.</p>
+    </div>
+    <div class="status-grid">
+      <div class="status-col done" data-reveal>
+        <h3><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--accent-3)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg> Das läuft heute <span class="status-tag">stabil</span></h3>
+        <ul>
+          <li><span class="m">✓</span> Kontur-Import aus jedem CAD-System via DXF (Linien, Kreise, Bögen, Polylinien, Ellipsen), 1:1 in mm</li>
+          <li><span class="m">✓</span> Beamer-Projektion der Konturen auf den Arbeitstisch</li>
+          <li><span class="m">✓</span> Kamera-Kalibrierung &amp; millimetergenaue Entzerrung auf die Tischfläche</li>
+          <li><span class="m">✓</span> <strong>Automatische Kalibrierung:</strong> ein Klick — das System richtet sich selbst ein und zeigt die erreichte Genauigkeit in mm an</li>
+          <li><span class="m">✓</span> Schritt-für-Schritt-Ablauf mit Bestätigung je Schritt</li>
+          <li><span class="m">✓</span> Handtracking &amp; Greifzonen direkt am Arbeitsplatz</li>
+          <li><span class="m">✓</span> Editor für Arbeitsplätze &amp; Abläufe, mehrsprachig (de/en/fr)</li>
+        </ul>
+      </div>
+      <div class="status-col wip" data-reveal>
+        <h3><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--accent-2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 5.5a3.5 3.5 0 0 0-4.9 4.2L4 15.3V20h4.7l5.6-5.6a3.5 3.5 0 0 0 4.2-4.9l-2.3 2.3-2-2z"/></svg> Neu &amp; als Nächstes <span class="status-tag">in Erprobung</span></h3>
+        <ul>
+          <li><span class="m">✦</span> Rückverfolgbarkeit, Aufträge &amp; Audit-Trail — gebaut &amp; geprüft, <strong>noch nicht im Pilotbetrieb</strong> erprobt</li>
+          <li><span class="m">→</span> Feinschliff der Griffprüfung (richtige Hand am richtigen Teil)</li>
+          <li><span class="m">→</span> Vollautomatische Beamer-Kalibrierung (die Kamera-Seite ist fertig)</li>
+          <li><span class="m">→</span> Anpassung an reale Montage-Szenarien der Pilotpartner</li>
+          <li><span class="m">→</span> Datenübergabe an bestehende Systeme im konkreten Anwendungsfall</li>
+          <li><span class="m">→</span> … und das, was <strong>du</strong> in deinem Betrieb brauchst</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PILOTPARTNER: DER DEAL ============ -->
+<section id="partner" style="background: var(--bg-soft);">
+  <div class="wrap">
+    <div class="section-title" data-reveal>
+      <span class="kicker">Fairer Tausch</span>
+      <h2>Was eine Pilotpartnerschaft bedeutet</h2>
+      <p>Du bekommst ein auf dich zugeschnittenes System zu Entwicklungspartner-Konditionen — und prägst, wohin sich BenchAr entwickelt.</p>
+    </div>
+    <div class="deal">
+      <div class="deal-col get" data-reveal>
+        <h3>Das bekommst du</h3>
+        <ul>
+          <li><span class="m">›</span> Ein lauffähiges System, eingerichtet und <strong>an deinen Montagefall angepasst</strong></li>
+          <li><span class="m">›</span> Vergünstigte <strong>Entwicklungspartner-Konditionen</strong> statt späterem Regelpreis</li>
+          <li><span class="m">›</span> Direkten Einfluss auf Funktionen und Roadmap</li>
+          <li><span class="m">›</span> Frühen Zugang und einen First-Mover-Vorteil</li>
+          <li><span class="m">›</span> Direkten Draht zum Entwickler — kurze Wege, schnelle Anpassungen</li>
+          <li><span class="m">›</span> Gemeinsam gemessene <strong>Kennzahlen aus deinem Pilot</strong> (Fehlerquote, Anlernzeit, Schrittzeiten) — belastbar statt behauptet</li>
+        </ul>
+      </div>
+      <div class="deal-col give" data-reveal>
+        <h3>Das bringst du ein</h3>
+        <ul>
+          <li><span class="m">›</span> Eine reale Montage-Aufgabe, an der wir BenchAr erproben</li>
+          <li><span class="m">›</span> Ehrliches Feedback aus dem Arbeitsalltag</li>
+          <li><span class="m">›</span> Bereitschaft, das System am Arbeitsplatz zu testen</li>
+          <li><span class="m">›</span> Auf Wunsch: eine Referenz, die anderen zeigt, dass es funktioniert</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="pilot-note" data-reveal>
+      <span class="slots">Aktuell nur 2–3 Pilotplätze</span>
+      <p>Damit jeder Partner die Aufmerksamkeit bekommt, die ein Pilot braucht, nehme ich bewusst nur wenige Betriebe auf. Die Station kommt komplett aus einer Hand — die Konditionen stelle ich individuell zusammen, passend zum Umfang deines Anwendungsfalls. <strong>Konditionen auf Anfrage.</strong></p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SO LÄUFT DIE ZUSAMMENARBEIT ============ -->
+<section id="ablauf">
+  <div class="wrap">
+    <div class="section-title" data-reveal>
+      <span class="kicker">Der Weg</span>
+      <h2>So läuft die Zusammenarbeit</h2>
+      <p>Unkompliziert und ohne Verpflichtung im ersten Schritt.</p>
+    </div>
+    <div class="steps">
+      <div class="step" data-reveal>
+        <div>
+          <h3>Unverbindliches Gespräch</h3>
+          <p>Du schilderst deine Montage-Aufgabe, ich zeige, was BenchAr heute leisten kann. Ehrlich, ohne Verkaufsdruck.</p>
+        </div>
+      </div>
+      <div class="step" data-reveal>
+        <div>
+          <h3>Pilot gemeinsam definieren</h3>
+          <p>Wir legen gemeinsam Umfang, Anwendungsfall und Konditionen fest — zugeschnitten auf deinen Bedarf und deinen Montagefall. Die passende Hardware bringe ich als abgestimmtes Komplettpaket mit.</p>
+        </div>
+      </div>
+      <div class="step" data-reveal>
+        <div>
+          <h3>Am Arbeitsplatz erproben</h3>
+          <p>Ich richte das System bei dir ein; gemeinsam passen wir es an und verbessern es anhand deines Feedbacks.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="pilot-note" data-reveal>
+      <span class="slots">Wer hinter BenchAr steht</span>
+      <p>Ich bin <strong>Fabian Hühn</strong> — Entwickler von BenchAr und Inhaber von <a href="https://www.filetoform.de" style="color:var(--accent-2);">filetoform</a> (3D&#8209;Scan, Reverse Engineering, CAD-Design und additive Fertigung). BenchAr entsteht aus genau dieser Praxis: Ich kenne Software <strong>und</strong> Werkbank. Halterungen und Zubehör der Stationen kommen aus der eigenen Fertigung — und wenn wir über deine Montage sprechen, sprichst du direkt mit dem, der es baut.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ VIDEO-DEMO ============ -->
+<section id="demo" style="background: var(--bg-soft);">
+  <div class="wrap">
+    <div class="section-title" data-reveal>
+      <span class="kicker">Bewegtbild</span>
+      <h2>BenchAr in Aktion</h2>
+      <p>Ein kurzer Blick auf einen geführten Durchlauf am realen Arbeitsplatz.</p>
+    </div>
+    <!-- Demo-Video: YouTube-Einbettung.
+         Ersetze VIDEO_ID durch deine YouTube-Video-ID und lösche den <div class="video-placeholder">. -->
+    <div class="video-frame" data-reveal>
+      <div class="video-ratio">
+        <!--
+        <iframe src="https://www.youtube-nocookie.com/embed/VIDEO_ID"
+                title="BenchAr Demo" allowfullscreen loading="lazy"></iframe>
+        -->
+        <div class="video-placeholder">
+          <div class="play"></div>
+          <div>Demo-Video hier einbetten (YouTube-ID eintragen)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ KONTAKT ============ -->
+<section id="kontakt">
+  <div class="wrap">
+    <div class="contact-box" data-reveal>
+      <h2 style="font-size:clamp(1.6rem,3vw,2.2rem); margin-bottom:10px;">Pilotpartner werden</h2>
+      <p style="color:var(--text-dim); max-width:520px; margin:0 auto;">Erzähl mir kurz von deinem Betrieb und deiner Aufgabe — ich melde mich für ein unverbindliches Gespräch.</p>
+
+      <!-- Tally-Formular „Pilotpartner werden" (eingebettet). Video-Platzhalter bleibt, bis die YouTube-ID da ist. -->
+      <div class="tally-embed">
+        <iframe data-tally-src="https://tally.so/embed/xXoOrG?alignLeft=1&hideTitle=1&transparentBackground=1&dynamicHeight=1" loading="lazy" width="100%" height="1322" frameborder="0" marginheight="0" marginwidth="0" title="Pilotpartner werden"></iframe>
+        <script>var d=document,w="https://tally.so/widgets/embed.js",v=function(){"undefined"!=typeof Tally?Tally.loadEmbeds():d.querySelectorAll("iframe[data-tally-src]:not([src])").forEach((function(e){e.src=e.dataset.tallySrc}))};if("undefined"!=typeof Tally)v();else if(d.querySelector('script[src="'+w+'"]')==null){var s=d.createElement("script");s.src=w,s.onload=v,s.onerror=v,d.body.appendChild(s);}</script>
+      </div>
+
+      <p style="margin-top:20px; font-size:.85rem; color:var(--text-dim);">
+        Lieber direkt? <a href="mailto:info@filetoform.de" style="color:var(--accent-2);">Schreib mir eine E-Mail</a>.
+      </p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="logo" style="justify-content:center;"><span class="logo-mark"></span> BenchAr</div>
+    <div class="footer-links">
+      <a href="#was">Was ist BenchAr</a>
+      <a href="#trace">Rückverfolgbarkeit</a>
+      <a href="#partner">Pilotpartner</a>
+      <a href="#kontakt">Kontakt</a>
+      <a href="impressum.html">Impressum</a>
+      <a href="datenschutz.html">Datenschutz</a>
+    </div>
+    <p style="margin-top:14px;">© 2026 BenchAr · Augmented Reality für die Montage</p>
+  </div>
+</footer>
+
+<script>
+  // Sanfte Scroll-Reveals — Progressive Enhancement: ohne JS / bei reduzierter Bewegung ist alles sichtbar.
+  (function () {
+    if (!('IntersectionObserver' in window)) return;
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    document.documentElement.classList.add('reveal-on');
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+    }, { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
+    document.querySelectorAll('[data-reveal]').forEach(function (el) { io.observe(el); });
+  })();
+</script>
+
+</body>
+</html>
